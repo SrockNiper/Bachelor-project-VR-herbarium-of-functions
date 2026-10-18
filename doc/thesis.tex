@@ -1,0 +1,737 @@
+\documentclass[czech, kiv, sem, he, iso690alph, pdf,viewonly]{fasthesis}
+\title{\texttt{Virtuální herbář funkcí}}
+\author{Marek}{Jirušek}{}{}
+\supervisor{Ing. Petr Vaněček, Ph.D.}
+\nobastardtitle
+\nocopyrightnotice
+\addbibresource{references.bib}
+\begin{document}
+
+\frontpages[notm]
+\tableofcontents
+
+
+\chapter{Úvod}
+Pochopit chování funkcí o jedné proměnné je pro studenty středních škol relativně intuitivní, jelikož lze snadno vizualizovat jejich grafy na papíře nebo pomocí, v dnešní době již jednoduše dostupných, nástrojů.
+Chování funkcí o dvou a více proměnných však již není tak jednoduché, jelikož nejenže vyžaduje určitou představivost, ale v dnešní době neexistuje dostatečný počet dostupných nástrojů, které by umožňovali interaktivní zkoumání těchto funkcí.
+Tato práce vznikla zejména z důvodu digitalizovat herbář funkcí, který byl napsán na katedře matematiky.
+Cílem této práce bylo vytvořit virtuální herbář funkcí, který umožní studentům interaktivně prozkoumávat chování funkcí o dvou proměnných ve virtuální realitě.
+
+\section{Prohlášení o použití umělé inteligence}
+Během přípravy této práce autor použil nástroj umělé inteligence Google Gemini k následujícím účelům:
+\begin{itemize}
+    \item konzultace týkající se implementačních detailů a návrhu softwarové architektury systému,
+    \item asistence při formulaci a stylistické úpravě odborného textu a kontrola terminologické konzistence.
+\end{itemize}
+Po použití tohoto nástroje autor pečlivě zkontroloval a upravil veškerý obsah podle potřeby. 
+Veškerá rozhodnutí týkající se návrhu, implementace a interpretace výsledků jsou výhradně vlastní prací autora. Autor přebírá plnou odpovědnost za výsledný obsah práce.
+
+\section{Definice problému}
+Generování 3D modelů grafů funkcí v reálném čase je náročný úkol, jelikož vyžaduje spoustu výpočtů.
+Navíc, pro zajištění plynulého zážitku ve virtuální realitě, je důležitý výkon a minimální odezva při překreslování grafů po změně parametrů.
+Aplikace musí být schopna:
+\begin{itemize}
+    \item Zpracovat uživatelský vstup: Aplikace musí být schopna přijímat nové funkce, zpracovávat změny parametrů a definičního oboru a aktualizovat grafy v reálném čase.
+    \item Generování 3D modelů: Aplikace musí být schopna generovat 3D modely grafů funkcí, které jsou vizuálně přehledné a informativní a zároveň edukativní pro studenty.
+    \item Body nespojitosti: Aplikace by měla identifikovat a vizualizovat body nespojitosti funkcí.
+    \item Interakce ve VR: aplikace by měla umožnit uživatelům za běhu měnit předpisy funkcí, měnit parametry a definiční obor a okamžitě vidět aktualizované grafy ve virtuální realitě bez opouštění VR prostředí.
+\end{itemize}
+
+\section{Cíl práce}
+Tento bakalářský projekt ideově a obsahově vychází z publikace \textit{Herbář funkcí}, která vznikla na Katedře matematiky (FAV/KMA). 
+Hlavním cílem práce je posunout tento koncept do interaktivního trojrozměrného prostoru a vyvinout aplikaci „Virtuální herbář funkcí“, 
+která uživatelům umožní prozkoumávat matematické funkce dvou proměnných v prostředí virtuální reality (VR). 
+
+Aplikace je navržena jako názorná učební pomůcka, jež má studentům usnadnit pochopení prostorových grafů a demonstrovat, 
+jak se jejich tvar dynamicky mění v závislosti na různých parametrech a zvoleném definičním oboru.
+
+Pro úspěšné dosažení tohoto hlavního cíle byly stanoveny následující dílčí úkoly:
+\begin{itemize}
+    \item Implementace algoritmu pro převod textového zápisu funkce do podoby 3D sítě (meshe) a její plynulé generování v reálném čase.
+    \item Návrh řešení pro detekci bodů nespojitosti a korektní ořezávání asymptot, aby nedocházelo k deformacím generovaného modelu.
+    \item Optimalizace výpočetní náročnosti aplikace s cílem udržet stabilní snímkovou frekvenci nezbytnou pro VR.
+    \item Vytvoření prostorového uživatelského rozhraní umožňujícího intuitivní manipulaci s modelem, úpravu parametrů rovnice a změnu definičního oboru přímo ve virtuálním prostředí.
+\end{itemize}
+
+\section{Struktura dokumentace}
+Následující text je logicky členěn do několika celků, které popisují vývoj a implementaci aplikace. 
+Druhá kapitola představuje celkovou architekturu aplikace a způsob, jakým mezi sebou komunikují jednotlivé komponenty. 
+Třetí kapitola poté rozebírá matematické jádro, od zpracování textového vstupu přes kompilaci do abstraktního syntaktického stromu (AST) až po samotný algoritmus generování 3D sítě a řešení asymptot. 
+Čtvrtá kapitola se následně věnuje optimalizačním technikám a limitům enginu, které bylo nutné překonat pro zajištění plynulého chodu ve VR. 
+Pátá kapitola popisuje návrh prostorového uživatelského rozhraní a implementaci fyzikálních interakcí i volného pohybu pomocí rámce XR Interaction Toolkit.
+Poslední kapitoly se zabývají testováním a shrnutím celého projektu, včetně návrhů pro budoucí rozšíření a vylepšení.
+
+
+\chapter{Architektura aplikace}
+Architektura aplikace je strukturována do specializovaných modulů, které spolu komunikují primárně pomocí událostí (C\# Events) a centrálního zprostředkovatele. 
+Návrh dodržuje princip jedné odpovědnosti (\textit{Single Responsibility Principle}). Tento přístup zajišťuje snadnou udržitelnost kódu, zabraňuje vzniku takzvaných 
+\textit{God Objects} a umožňuje plynulý chod aplikace i při výpočetně náročných operacích ve virtuální realitě.
+
+\section{Komponenty aplikace}
+Aplikace je logicky rozdělena do několika hlavních softwarových komponent, z nichž každá plní svou specifickou roli:
+
+\begin{itemize}
+    \item \textbf{Manager:} Představuje ústřední řídicí uzel aplikace (využívající návrhový vzor \textit{Mediator}). 
+    Sám neprovádí složité výpočty, ale drží reference na ostatní subsystémy a koordinuje jejich součinnost.
+    \item \textbf{DataManager:} Zajišťuje vrstvu perzistence. 
+    Stará se o načítání textového souboru s rovnicemi ze souborového systému a na pozadí monitoruje jeho případné externí změny.
+    \item \textbf{VRInputManager:} Zapouzdřuje logiku ovládání ve virtuální realitě. Izoluje čtení vstupů z ovladačů a spravuje fyzikální interakce uživatele s modelem, jako je například obouruční škálování velikosti grafu (přes sub-komponentu \command{HandInteractionHandler}).
+    \item \textbf{Generator:} Tvoří matematické jádro aplikace (fungující jako vzor \textit{Facade}). 
+    Přijímá textové řetězce reprezentující funkce a deleguje jejich zpracování -- kompilaci provádí \command{MathPreprocess}, iterativní výpočet prostorových souřadnic a detekci asymptot řeší 
+    \command{MeshGenerator} a stavbu os \command{KSSGenerator}.
+    \item \textbf{UIManager a MenuGenerator:} Starají se o dynamické prostorové rozhraní. 
+    Moduly naslouchají událostem z \command{Generatoru} a \command{DataManageru} a na jejich základě automaticky instancují ovládací prvky (informační tabule, posuvníky a číselníky) 
+    pro manipulaci s definičním oborem a parametry.
+\end{itemize}
+
+\section{Datový tok a komunikace}
+Aby nedocházelo k propadům snímkové frekvence, není komunikace mezi moduly vázána na pravidelnou aktualizační smyčku enginu, ale je striktně řízena událostmi (event-driven architecture). 
+
+Zpracování nové funkce probíhá asynchronně. 
+Jakmile \command{DataManager} detekuje nebo načte funkce, vyvolá událost \command{OnFunctionsLoaded}. 
+Na tu zareaguje \command{UIManager} překreslením nabídky na virtuální tabuli a \command{Generator} zahájením kompilace první funkce. 
+Po úspěšném sestavení 3D sítě vyvolá \command{Generator} událost \command{OnFunctionLoaded}. Tuto událost zachytí \command{MenuGenerator} a 
+dynamicky podle ní sestaví příslušné ovládací prvky pro zachycené parametry rovnice.
+
+Pokud následně uživatel pomocí paprsku ovladače změní hodnotu parametru, menu zapíše novou hodnotu přímo do pole parametrů v \command{Generatoru} a explicitně zavolá metodu \command{RefreshGraph()}. 
+Aplikace tak negeneruje síť neustále, ale výhradně v okamžiku, kdy dojde ke skutečné změně vstupních dat.
+
+\chapter{Architektura dat a matematické jádro}
+Tato kapitola se věnuje vnitřní logice aplikace, která zajišťuje převod textových řetězců s matematickými výrazy do podoby interaktivních 3D modelů ve virtuální realitě. 
+Architektura je datově řízená (data-driven), tím pádem veškeré předpisy funkcí jsou uloženy externě a aplikace je dynamicky zpracovává až za běhu. 
+Toto řešení umožňuje uživatelům průběžně modifikovat obsah virtuálního herbáře bez nutnosti zásahu do zdrojového kódu či restartování samotné aplikace, což usnadňuje proces výuky a experimentování.
+
+\section{Datově řízený návrh a real-time monitoring}
+Základním architektonickým principem řešení je striktní oddělení výpočetní logiky od spravovaných dat. 
+Místo statického definování tzv. \textit{hard-coded} funkcí přímo v modulu \command{Generator} využívá aplikace externí textový konfigurační soubor s názvem \filename{functions.txt}, 
+ve kterém je definován seznam rovnic tvořících obsah herbáře.
+
+\subsection{Úložiště a správa souborů}
+Centrálním úložištěm pro veškeré matematické definice je soubor \filename{functions.txt}, který je alokován ve speciálním adresáři \filename{StreamingAssets}. 
+Tato složka je z pohledu enginu \product{Unity} specifická tím, že její obsah nepodléhá interní kompilaci a zůstává v nezměněné podobě i po sestavení výsledné aplikace (buildu). 
+Koncoví uživatelé, typicky vyučující, tak mohou snadno doplňovat či upravovat vyučovanou látku zcela nezávisle na vývojovém cyklu programu.
+
+Při startu aplikace provádí třída \command{DataManager} kontrolu integrity datového úložiště. Pokud aplikace detekuje, že konfigurační soubor chybí nebo je poškozen, 
+automaticky vygeneruje nový a zainicializuje jej sadou předdefinovaných demonstračních rovnic. 
+Pro maximální zjednodušení uživatelského přístupu navíc aplikace při prvním spuštění vytvoří v kořenovém adresáři programu zástupce ve formě dávkového souboru \filename{1\_Upravit\_Rovnice.bat}, 
+který zajistí okamžité otevření konfiguračního souboru ve výchozím textovém editoru hostitelského operačního systému.
+
+\subsection{Mechanismus FileSystemWatcher a asynchronní aktualizace}
+Aby bylo možné modifikovat rovnice za běhu aplikace, využívá \command{DataManager} zapouzdřenou .NET komponentu \command{FileSystemWatcher} (prostřednictvím vlastní třídy \command{FileWatcher}). 
+Tento nástroj na pozadí monitoruje cílový adresář a naslouchá události zápisu (\command{NotifyFilters.LastWrite}) do souboru \filename{functions.txt}.
+
+Jelikož události ze sledování souborového systému probíhají ve vedlejším výpočetním vlákně a aplikační rozhraní enginu \product{Unity} není takzvaně \textit{thread-safe} (bezpečné pro přímý přístup z více vláken), 
+je proces aktualizace rozdělen do dvou synchronizovaných fází:
+
+\begin{itemize}
+    \item \textbf{Fáze detekce (Vlákno na pozadí):} Jakmile \command{FileSystemWatcher} zaznamená změnu souboru, je spuštěna anonymní metoda, která pouze změní hodnotu booleovské proměnné \command{needsRefresh} na hodnotu \command{true}. Během této fáze se nevolají žádné metody enginu Unity, čímž je zamezeno kolizím a pádům aplikace.
+    \item \textbf{Fáze zpracování (Hlavní vlákno Unity):} V rámci standardní herní smyčky (metoda \command{Update}) \command{DataManager} každý snímek kontroluje stav proměnné \command{needsRefresh}. Pokud je indikována změna, proměnná je bezpečně resetována a následně je z hlavního vlákna zavolána metoda pro opětovné načtení souboru a aktualizaci aplikace.
+\end{itemize}
+
+Tento \textit{Thread-Safe} mechanismus zajišťuje maximální stabilitu aplikace i při rychlém a opakovaném přepisování konfiguračního souboru externími programy.
+
+\section{Analýza matematických výrazů a kompilace do AST}
+Jakmile je textová reprezentace funkce (např. výraz $a \cdot \sin(b \cdot x)$) načtena, je předána třídě \command{MathPreprocess}. 
+Ta zajišťuje její převod do reverzní polské notace (RPN) a následnou kompilaci do abstraktního syntaktického stromu (AST). 
+
+Vzhledem k tomu, že vstupem je textový řetězec, nasazení prostého interpretu by bylo pro potřeby aplikace zcela nedostačující. 
+Opakované vyhodnocování textu pro desítky tisíc bodů sítě v každém vykreslovaném snímku by vedlo k enormní výpočetní režii a drastickému propadu snímkové frekvence, 
+což je ve virtuální realitě kritický problém způsobující kinetózu (nevolnost). Zpracování výrazu je proto rozděleno do následujících tří fází:
+
+\begin{itemize}
+    \item \textbf{Lexikální analýza (Tokenizace):} Rozdělení vstupního řetězce na elementární textové a sémantické jednotky (tzv. tokeny).
+    \item \textbf{Shunting-yard algoritmus:} Syntaktická analýza tokenů a jejich převod z infixové notace do RPN, čímž je jednoznačně určena priorita operací bez nutnosti použití závorek.
+    \item \textbf{Kompilace do AST:} Konstrukce syntaktického stromu z RPN a jeho překlad do nativního kódu (do podoby delegátu) pro dosažení maximální rychlosti při samotném výpočtu bodů.
+\end{itemize}
+
+\subsection{Lexikální analýza (Tokenizace)}
+Než může být matematický výraz algoritmicky zpracován, musí být rozložen na základní stavební bloky, tzv. tokeny. Úkolem metody \command{Tokenize} je lineárně projít řetězec a rozdělit jej na jednotky, 
+se kterými lze následně pracovat.
+
+Před samotným průchodem je text očištěn od bílých znaků (mezer), převeden na malá písmena a případné desetinné čárky jsou normalizovány na tečky, čímž se zajistí kompatibilita s 
+parsováním datového typu \command{float} v jazyce C\#. Následně algoritmus iteruje řetězcem znak po znaku a shlukuje je do následujících tří kategorií:
+
+\begin{itemize}
+    \item \textbf{Numerické hodnoty:} Narazí-li analyzátor na číslici nebo desetinnou tečku, shlukuje všechny bezprostředně následující platné znaky do jediného číselného tokenu.
+    \item \textbf{Alfanumerické řetězce (Slova):} Detekuje-li analyzátor písmeno, spojí souvislou řadu písmen do jednoho textového tokenu. V případě výrazu $a \cdot \sin(b \cdot x)$ 
+    tak budou rozpoznány samostatné textové jednotky \command{a}, \command{sin}, \command{b} a \command{x}.
+    \item \textbf{Operátory a závorky:} Jednotlivé znaky z předem definované množiny \command{+-*/^()} jsou izolovány jako samostatné matematické či strukturní operátory.
+\end{itemize}
+
+Kromě základního rozdělování textu se analyzátor v této fázi elegantně vypořádává s problematickým unárním mínusem, který se v matematických výrazech běžně vyskytuje 
+(např. ve výrazech \command{-x}, \command{-(x+y)} nebo \command{sin(-x)}). Analyzátor tuto situaci uvnitř cyklu řeší zavedením jednoduchého pravidla: pokud je detekován znak \command{-} 
+na samém začátku výrazu nebo bezprostředně za otevírací závorkou \command{()}, je automaticky před tento znak vložen nový token \command{0}. 
+Tím dochází k internímu převodu unární operace na operaci binární (ve smyslu $0 - x$), což efektivně a bezpečně předchází pádům při vyhodnocování priorit v navazujícím algoritmu Shunting-yard.
+
+\subsection{Algoritmus Shunting-yard}
+Výstupem předchozí fáze je seznam tokenů v běžné infixové notaci. Tato notace je přirozená pro člověka, pro přímé strojové vyhodnocení je však nevhodná z důvodu nutnosti explicitně řešit priority 
+operátorů a uzávorkování. Pro převod výrazu do reverzní polské notace (RPN) implementuje třída \command{MathPreprocess} modifikovaný algoritmus \term{Shunting-yard} \cite{dijkstra_shunting_yard}.
+
+V RPN se operátory zapisují za své operandy, čímž odpadá nutnost použití závorek. 
+Metoda \command{ShuntingYard} pro tento převod využívá dvě datové struktury: výstupní seznam (\command{List<string> outputQueue}) a dočasný zásobník (\command{operatorStack}). 
+Prioritu operátorů definuje pevný slovník; sčítání a odčítání mají nejnižší prioritu (1), umocňování nejvyšší (3).
+
+Algoritmus zpracovává tokeny zleva doprava a operandy (čísla, proměnné) vkládá přímo do výstupu. Operátory a matematické funkce odkládá na dočasný zásobník, 
+dokud není jednoznačně určena jejich priorita vůči dalším operacím. Při načtení matematického operátoru dojde k jeho porovnání s operátorem na vrcholu zásobníku. 
+Pokud má operátor na zásobníku vyšší nebo stejnou prioritu, přesune se do výstupního seznamu. Výjimkou je operátor mocniny (\command{\^}), který je asociativní zprava doleva.
+
+Závorky plní roli bariér. Otevírací závorka se ukládá na zásobník. Při nalezení zavírací závorky se všechny operátory na zásobníku až po první otevírací závorku přesunou na výstup. 
+Po zpracování všech vstupních tokenů se zbylé operátory ze zásobníku vyprázdní do výstupu. Tím vzniká kompletní RPN reprezentace zadané funkce, připravená pro kompilaci do abstraktního syntaktického stromu (AST).
+
+Oproti standardní verzi algoritmu, která zpracovává primárně základní aritmetické operátory a číselné konstanty, obsahuje použitá implementace dvě klíčové modifikace. 
+První úpravou je podpora proměnných (například souřadnic $x$ a $z$). Ty lexikální analyzátor identifikuje a algoritmus je následně propouští přímo na výstup jako běžné operandy. 
+Druhým rozšířením je nativní zpracování matematických funkcí (např. goniometrických nebo logaritmických). 
+Tyto funkce se dočasně ukládají na zásobník a k jejich přesunu do výstupní fronty dochází cíleně po zpracování zavírací závorky argumentu. 
+Tím je algoritmicky zaručeno správné zřetězení funkce s jejím vnitřním výrazem, což standardní Dijkstrův návrh nativně neřeší.
+
+\begin{code}{C#}{Strukturální pseudokód algoritmu Shunting-yard\label{lst:shunting_yard}}
+foreach (string token in vstupniTokeny) {
+    if (JeOperand(token)) {
+        outputQueue.Add(token);
+    } else if (JeFunkce(token)) {
+        operatorStack.Push(token);
+    } else if (JeOperator(token)) {
+        while (operatorStack.Count > 0 && operatorStack.Peek() != "(") {
+            string topOp = operatorStack.Peek();
+            if (token != "^" && Priorita(token) <= Priorita(topOp)) {
+                outputQueue.Add(operatorStack.Pop());
+            } else {
+                break;
+            }
+        }
+        operatorStack.Push(token);
+    } else if (token == "(") {
+        operatorStack.Push(token);
+    } else if (token == ")") {
+        while (operatorStack.Count > 0 && operatorStack.Peek() != "(") {
+            outputQueue.Add(operatorStack.Pop());
+        }
+        if (operatorStack.Count > 0 && operatorStack.Peek() == "(") {
+            operatorStack.Pop(); // Zahození levé závorky
+        }
+        if (operatorStack.Count > 0 && JeFunkce(operatorStack.Peek())) {
+            outputQueue.Add(operatorStack.Pop());
+        }
+    }
+}
+
+while (operatorStack.Count > 0) {
+    outputQueue.Add(operatorStack.Pop());
+}
+\end{code}
+
+\subsection{Kompilace do abstraktního syntaktického stromu}
+Závěrečnou fází předzpracování funkce je transformace fronty v reverzní polské notaci do podoby optimalizovaného spustitelného delegátu. 
+Cílem této fáze je sestavit v paměti takovou strukturu, kterou bude procesor schopen opakovaně a maximálně efektivně vykonávat v reálném čase.
+
+\subsubsection{Abstraktní syntaktický strom (AST)}
+Abstraktní syntaktický strom (z anglického \term{Abstract Syntax Tree}, zkráceně AST) je hierarchická stromová struktura reprezentující logickou stavbu zdrojového kódu nebo matematického výrazu. 
+Vnitřní uzly stromu tvoří operátory (například sčítání či násobení) a matematické funkce (například sinus nebo absolutní hodnota). Listy stromu představují operandy, tedy číselné konstanty nebo proměnné.
+
+Výhodou AST je absence nadbytečných syntaktických prvků, jako jsou závorky, jelikož posloupnost vyhodnocování je dána samotnou hierarchií stromu. Výpočet probíhá rekurzivně od nejnižších listů směrem ke kořeni.
+
+\subsubsection{Konstrukce stromu a kompilace v aplikaci}
+Proces stavby AST probíhá lineárním průchodem RPN fronty za využití knihovny \product{System.Linq.Expressions} \cite{microsoft_docs_expressions} a pomocného zásobníku typu \command{Stack<Expression>}. 
+Algoritmus postupně odebírá tokeny a podle jejich typu vytváří příslušné uzly:
+
+\begin{itemize}
+    \item \textbf{Konstanty a proměnné:} Číselné hodnoty jsou transformovány na uzly typu \command{ConstantExpression}. Prostorové proměnné $x$ a $z$ jsou definovány jako uzly \command{ParameterExpression}, sloužící jako argumenty pro iterativní výpočet.
+    \item \textbf{Parametry (koeficienty):} Pokud analyzátor narazí na identifikátor, který nepatří mezi interní funkce (například koeficienty $a, b$), přiřadí mu index v dynamickém poli parametrů. Přístup k těmto hodnotám je reprezentován uzlem \command{Expression.ArrayIndex} nad polem \command{argsParam}.
+    \item \textbf{Aritmetické operátory:} Při detekci operátoru dojde k vyjmutí dvou předchozích výrazů ze zásobníku a jejich spojení do nového uzlu (například \command{Expression.Add}). Vzniklý podstrom je uložen zpět na zásobník.
+    \item \textbf{Mapování funkcí a reflexe:} Vzhledem k tomu, že použitá knihovna neobsahuje nativní uzly pro goniometrické funkce nebo mocniny, využívá kompilátor mechanismus reflexe jazyka C\#. Pomocí metody \command{GetMethod} jsou vyhledány odpovídající definice z knihovny \product{UnityEngine.Mathf} (například \command{Sin}, \command{Pow}). Tyto operace jsou do stromu vloženy jako uzly typu \command{MethodCallExpression}.
+\end{itemize}
+
+Výsledkem procesu je kořenový uzel stromu zapouzdřený v objektu \command{LambdaExpression}. Voláním metody \command{.Compile()} dochází k JIT (Just-In-Time) kompilaci do mezijazyka \term{Intermediate Language} (IL). Tím vzniká spustitelný předpis typu \command{Func<float, float, float[], float>}. Metoda \command{Compile} vrací tento předpis společně se seznamem názvů nalezených koeficientů, který aplikace využívá pro dynamické generování ovládacích prvků v uživatelském rozhraní.
+
+
+\subsubsection{Optimalizace zobrazení pomocí pomocné paměti (Caching)}
+Nejprostším způsobem vyhodnocení matematického výrazu by bylo naprogramování \term{interpretu}, který by pro každý počítaný bod sítě znovu analyzoval a zpracovával vstupní textový řetězec. Vzhledem k tomu, že 3D síť grafu může běžně obsahovat i více než 100\,000 vrcholů a prostředí virtuální reality vyžaduje plynulé překreslování s frekvencí 72 až 90 Hz, musel by takový interpret provádět několik zbytečných textových operací každou vteřinu. To by vedlo k extrémní výpočetní režii a naprosté degradaci plynulosti obrazu.
+
+Dynamická kompilace do IL kódu tuto zátěž prakticky zcela eliminuje. Zkompilovaný delegát je procesorem vykonáván nativně a s výkonem plně srovnatelným s kódem, který by programátor napevno zapsal do zdrojového souboru.
+
+Aby se zamezilo kompilování již využívaných předpisů, využívá třída \command{Generator} vnitřní mezipaměť (\term{Caching}). 
+Každý úspěšně zkompilovaný předpis je společně se seznamem nalezených koeficientů trvale uložen do hashovací tabulky \command{Dictionary}, konkrétně do privátní kolekce \command{compiledCache}. 
+Pokud se uživatel k dané rovnici v herbáři později vrátí, aplikace ji okamžitě načte přímo z paměti v její přeložené podobě. 
+Tento přístup garantuje rychlou odezvu uživatelského rozhraní i při rychlém přepínání mezi složitými matematickými modely na virtuální tabuli.
+
+\subsection{Detekce nespojitostí a algoritmus bisekce}
+Většina matematických funkcí má složité chování, jako jsou například body nespojitosti, mezery v definičním oboru nebo asymptoty (např. $f(x,y) = \frac{x^2 \cdot y^2}{x^3 + y^2}$). 
+V místech takových nespojitostí vznikají při naivním generování sítě vizuální artefakty v podobě nepřirozeně natažených a strmých polygonů. 
+Pro korektní zobrazení těchto jevů využívá aplikace vícefázový vyhodnocovací proces doplněný o numerickou metodu \term{bisekce} (půlení intervalu).
+
+Generování sítě proto neprobíhá naslepo. Každý vypočítaný bod prochází validací. 
+Pokud zkompilovaná funkce vrátí neplatnou hodnotu (\command{NaN} nebo nekonečno) nebo vypočítaná výška přesáhne povolený limit prostoru (\command{limitY}), označí algoritmus daný vrchol jako neplatný. 
+
+Následně algoritmus prozkoumá čtyři bezprostřední sousedy tohoto bodu v mřížce. Pokud alespoň jeden ze sousedů leží v platné oblasti, znamená to, že se výpočet nachází na okraji asymptoty či trhliny a spouští se proces bisekce. Princip hledání přesné hrany spočívá v postupném půlení vzdálenosti mezi platným a neplatným vrcholem:
+
+\begin{enumerate}
+    \item Algoritmus určí středový bod (\command{mid}) úsečky spojující platný a neplatný bod.
+    \item Tento středový bod je obratem vyhodnocen pomocí zkompilovaného delegátu.
+    \item Pokud má středový bod platnou výšku a shodné znaménko s původním platným bodem, posouvá se platná hranice přímo do tohoto středu.
+    \item V opačném případě (bod je stále neplatný nebo jeho výpočet odskočil do opačného nekonečna) se do středu posouvá neplatná hranice.
+\end{enumerate}
+
+Tento cyklus se standardně zopakuje desetkrát (v kódu definováno konstantou \command{BINARY\_SEARCH\_ITERATIONS}). 
+Původně neplatný bod je následně ukotven přesně na tyto nově spočítané souřadnice.
+
+\subsection{Triangulace, směrové vektory a výškové ořezání}
+Ukotvení bodů na hranu asymptoty řeší pouze přesnou topologii vrcholů. Neřeší však samotný problém nechtěného propojování polygonů napříč touto trhlinou. 
+Z toho důvodu si algoritmus během bisekce u každého označeného bodu ukládá směrové příznaky \command{dirX} a \command{dirZ}. 
+Tyto vektory indikují, ze kterého směru byl původně neplatný bod přitažen ke svému platnému sousedovi. Pokud byl například bod přitažen vlevo (\command{dirX = -1}), 
+znamená to, že fyzicky patří k levému břehu asymptoty. Pokud záchrana bodu nebyla vůbec možná, je směrovému vektoru přiřazena hodnota \command{INVALID\_DIRECTION\_MARKER}.
+
+Ve fázi triangulace, kdy se vrcholy spojují do finálních trojúhelníků, generátor tyto směrové vektory kontroluje. Základní plošný segment sítě je tvořen čtveřicí vrcholů (čtvercem). Algoritmus zkoumá, zda některý z vrcholů nebyl přitažen ze směru, který míří pryč od středu aktuálně řešeného čtverce. Pokud ano, znamená to, že se daný čtverec snaží překlenout mezeru v grafu. Algoritmus v takovém případě jeho vykreslení přeskočí příkazem \command{continue}, čímž tyto defektní polygony vyřadí.
+
+Navíc se nezávisle ověřuje, zda maximální výškový rozdíl mezi rohy čtverce nepřesahuje kritickou toleranci a zda funkce v samotném středu čtverce nevrací neplatnou hodnotu. 
+Zjednodušená logika této topologické ochrany, zbavená takzvaných magických čísel a využívající zavedené konstanty, je znázorněna v následujícím pseudokódu:
+
+\begin{code}{C#}{Logika zamezení propojování polygonů přes asymptoty\label{lst:triangulation}}
+// Prochazeni mrizky a ziskani rohu aktualniho ctverce:
+// DL (Dolni-Levy), DP (Dolni-Pravy), HL (Horni-Levy), HP (Horni-Pravy)
+
+// 1. Zahozeni ctvercu, ktere obsahuji zcela neplatne body
+if (DL.y == INVALID_HEIGHT_MARKER || DP.y == INVALID_HEIGHT_MARKER || 
+    HL.y == INVALID_HEIGHT_MARKER || HP.y == INVALID_HEIGHT_MARKER) continue;
+
+// 2. Kontrola smerovych vektoru z bisekce (-1 pro vlevo/dolu, 1 pro vpravo/nahoru)
+// Pokud byl vrchol pritazen z opacne strany, nez lezi stred ctverce, propast je uvnitr.
+// Nebo pokud nesel zachranit (INVALID_DIRECTION_MARKER), tak jej automaticky preskoci.
+if (DL.dirX == -1 || DL.dirZ == -1 || DL.dirX == INVALID_DIRECTION_MARKER) continue; 
+if (DP.dirX ==  1 || DP.dirZ == -1 || DP.dirX == INVALID_DIRECTION_MARKER) continue; 
+if (HL.dirX == -1 || HL.dirZ ==  1 || HL.dirX == INVALID_DIRECTION_MARKER) continue; 
+if (HP.dirX ==  1 || HP.dirZ ==  1 || HP.dirX == INVALID_DIRECTION_MARKER) continue; 
+
+// 3. Kontrola extremni strmosti 
+if ((MaxVyska(DL, DP, HL, HP) - MinVyska(DL, DP, HL, HP)) > maxDifference) continue;
+
+// 4. Pojistna kontrola stredu ctverce (odhaleni velmi uzkych asymptot)
+float stredY = VypoctiFunkciV(stredX, stredZ);
+if (float.IsNaN(stredY) || stredY > limitY) continue;
+
+VytvorTrojuhelnikyCtverce(DL, DP, HL, HP);
+\end{code}
+
+Ačkoliv je výše zmíněnými kroky zajištěno, že nevznikají polygony překračující trhliny, je nutné korektně zpracovat i samotné vrcholy směřující k nekonečnu. 
+Tyto okrajové platné vrcholy jsou fyzicky oříznuty na maximální povolenou výšku (\command{limitY}) pomocí metody \command{Mathf.Clamp}. Aby na těchto oříznutých místech nevznikaly nepřirozené vizuální stropy, 
+je výsledná síť doplněna o speciální grafický materiál (shader). Ten v kombinaci s fyzickým ořezáním zajišťuje, že se trojúhelníky blížící se k okraji limitu vykreslují postupně zprůhledněné nebo jsou zcela zahozeny. Vytváří se tak plynulý a přirozený dojem funkce mizející v nekonečnu.
+
+
+\subsection{Kompletace modelu a fyzikální interakce}
+Vrcholy, které se nacházejí hluboko v neplatné oblasti a nebylo možné je zachránit algoritmem bisekce, si dočasně ponechávají přiřazenou extrémní výškovou hodnotu 
+(definovanou pomocí konstanty \command{INVALID\_HEIGHT\_MARKER}). Těsně před finálním odesláním struktury do paměti grafické karty jsou tyto neviditelné vrcholy přesunuty přesně do lokálního počátku 
+souřadného systému (\command{Vector3.zero}). Jedná se o vrcholy, které nakonec nejsou součástí žádného vykreslovaného trojúhelníku.
+
+Tato normalizace datových polí je kritická z hlediska enginu pro výpočet fyziky. Jakmile je trojrozměrná síť kompletně vygenerována, je nad ní automaticky sestavena kolizní obálka \command{BoxCollider}. 
+Ta je nezbytná pro správné vyhodnocování interakcí ve virtuální realitě. Její prostorové rozměry (\command{mesh.bounds.size}) a střed (\command{mesh.bounds.center}) 
+jsou dynamicky vypočteny na základě reálných prostorových extrémů viditelného grafu. 
+
+Schování neplatných bodů do lokálního počátku zajišťuje, že se vypočtená obálka nebude uměle natahovat do nekonečna. Díky tomuto kroku odpovídá fyzikální těleso vizuální reprezentaci grafu. 
+Uživatel tak může ve virtuální realitě výsledný matematický objekt fyzicky uchopit a plynule s ním manipulovat prostřednictvím vývojového rámce \product{XR Interaction Toolkit}.
+
+
+
+
+
+\chapter{Optimalizace a limity enginu}
+Vývoj aplikací pro virtuální realitu je specifický tím, že vyžaduje nejen vysoký výpočetní výkon, ale i efektivní správu paměti a vysokou optimalizaci. 
+Zatímco u běžných desktopových aplikací je občasný pokles snímkové frekvence pouze estetickým defektem, ve virtuální realitě vede jakékoliv zpoždění při vykreslování (tzv. \term{frame drop}) k závažným problémům. 
+Může způsobovat nevolnosti a výrazně tak zhoršit celkový uživatelský zážitek.
+
+Jelikož aplikace generuje v reálném čase modely o velikosti přesahující 10\,000 vrcholů a tyto modely uživatel dynamicky mění, bylo nutné přistoupit k optimalizaci na několika úrovních. 
+Optimalizace se dotkla samotné architektury kódu, použitých datových struktur i specifických funkcí enginu \product{Unity}.
+
+\section{Indexování sítě}
+Základem každého 3D objektu v enginu \product{Unity} je datová struktura \command"Mesh". 
+Ta se skládá z pole vrcholů (\command"vertices") a pole indexů (\command"triangles"), jež tyto vrcholy spojují do trojúhelníkových ploch. 
+
+Z výkonnostních důvodů využívá engine \product{Unity} ve výchozím nastavení 16bitový formát pro indexování vrcholů. 
+Tento formát pojme maximálně $2^{16}$ unikátních hodnot, což striktně omezuje velikost jednoho trojrozměrného modelu na 65\,536 vrcholů. 
+Pro vizualizaci některých matematických funkcí, zejména těch s vysokou frekvencí změn nebo s komplexními tvary, je však potřeba generovat sítě s mnohem vyšším rozlišením.
+
+Aby bylo možné tento hardwarový limit překonat, aplikace modifikuje vnitřní nastavení geometrické sítě. 
+Před samotným naplněním daty je formát indexů přepnut do 32bitového režimu:
+
+\begin{code}{C}{Aktivace 32bitového indexování geometrie\label{lst:index_format}}
+mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+\end{code}
+
+Toto nastavení posouvá teoretický limit jednoho objektu na více než 4 miliardy vrcholů. 
+Díky tomuto kroku není rozlišení vizualizované mřížky limitováno samotným enginem, ale pouze reálným výpočetním výkonem hardwaru. 
+To umožňuje škálovatelnost kvality zobrazení podle možností dané grafické karty a aktuálních požadavků uživatele.
+
+\section{Správa paměti a eliminace alokací}
+Dalším kritickým místem (\term{bottleneck}) při dynamickém generování 3D modelů je správa operační paměti a činnost tzv. \term{Garbage Collectoru} (GC). 
+Pokud by aplikace při každé změně parametru (např. při posunutí posuvníku o jeden milimetr) vytvořila v paměti zcela nový objekt \command{Mesh} a nová pole pro vrcholy a indexy, 
+došlo by nejen k rychlému vyčerpání dostupné paměti, ale i k častým zásahům GC, které by způsobovaly závažné poklesy snímkové frekvence a zhoršovaly by plynulost zobrazení.
+
+Aplikace proto recykluje již existující objekty. 
+Objekt \command{Mesh} je v paměti alokován pouze jednou, a to při inicializaci. 
+Při požadavku na překreslení grafu se nevytváří objekt nový, ale existující struktura je pouze vyčištěna voláním metody \command{mesh.Clear()} a následně jsou do ní nalita nová, přepsaná data. 
+
+Obdobně je optimalizován i výpočet normálových vektorů. 
+Namísto manuálního počítání kolmic pro každý trojúhelník aplikace využívá vestavěnou funkci \command{mesh.RecalculateNormals()}, která je optimalizována pro rychlé zpracování velkých množství dat 
+a minimalizuje režii spojenou s výpočtem normál.
+
+\section{Architektura řízená událostmi (Event-driven)}
+Jak již bylo naznačeno v předchozích kapitolách, klíčovou vrstvou optimalizace je odstranění náročných výpočtů z hlavní renderovací smyčky (metody \command{Update}). 
+Celá architektura je proto řízena událostmi (\textit{event-driven}). 
+
+Zatímco vizuální systém ve VR běží neustále a plynule překresluje obraz pro displeje brýlí, matematické jádro ve výchozím stavu spí. 
+Až ve chvíli, kdy uživatel fyzicky změní stav některého z ovládacích prvků rozhraní (například posune posuvníkem parametru), zachytí příslušný modul (např. \command{MenuGenerator} v rámci \command{UIManageru}) 
+tuto událost. Tento modul následně přímo zaktualizuje potřebné hodnoty v poli parametrů a explicitně zavolá překreslovací metodu v \command{Generatoru} (\command{RefreshGraph()}). 
+
+Tento přístup garantuje, že procesorový čas je spotřebováván na matematické operace výhradně v momentech, kdy dochází k reálné změně vstupních dat. 
+Po zbytek času zůstává plný výpočetní výkon k dispozici pro potřeby enginu a fyziky virtuální reality, což je kritické pro udržení stabilní a vysoké snímkové frekvence.
+
+
+
+\chapter{Uživatelské rozhraní, interakce a zobrazení ve VR}
+Návrh uživatelského rozhraní ve virtuální realitě vyžaduje oproti tradičním desktopovým aplikacím zcela odlišný přístup. 
+Uživatel nevyužívá standardní vstupní zařízení, jako jsou myš a klávesnice, ale spoléhá se výhradně na prostorovou manipulaci. 
+Pro implementaci těchto interakčních mechanismů aplikace využívá vývojový rámec \product{XR Interaction Toolkit} (XRIT) \cite{unity_xr_manual}, 
+který je oficiální součástí herního enginu \product{Unity}. Tento balíček poskytuje abstrakci pro mapování vstupů z různých hardwarových ovladačů (například Meta Quest, HTC Vive nebo Valve Index) 
+a zajišťuje jejich následný převod na interakční události.
+
+\section{Prostorové uživatelské rozhraní (Tabule a příruční menu)}
+Uživatelské rozhraní aplikace je ukotveno přímo do prostoru 3D scény ve formě interaktivních panelů (tzv. \term{World Space Canvas}). Z hlediska softwarové logiky a přístupnosti se dělí na dva hlavní celky:
+
+\begin{itemize}
+    \item \textbf{Hlavní tabule (Výběr funkce):} Tento statický panel je umístěný ve virtuálním prostoru a slouží k výběru analyzované rovnice. 
+    Poté, co \command{DataManager} načte předpisy funkcí z externího textového souboru, předá je komponentě \command{TableManager}. 
+    Ta následně vyčistí herní desku a pomocí metody \command{RefreshBoardUI()} vygeneruje seznam nově načtených interaktivních tlačítek (přepínačů). 
+    Uživatel na tlačítko namíří laserový paprsek a stisknutím volí konkrétní funkci, kterou chce vizualizovat.
+    
+    \item \textbf{Příruční menu (Parametry a definiční obor):} Pro operativní manipulaci s vygenerovaným grafem má uživatel k dispozici prostorové menu. 
+    Zapínání a vypínání jednotlivých panelů (aby se zamezilo vizuálnímu přeplnění scény) spravuje skript \command{HandMenuHandler} na základě stisku tlačítek na VR ovladači. 
+    Celé menu spadá pod zastřešující prvek \command{UIManager} a dělí se na dvě specifické sekce:
+    \begin{itemize}
+        \item \textit{Menu pro úpravu parametrů:} Obsahuje komponentu \command{ParametrMenuHandler}, která na základě dat z generátoru automaticky instancuje posuvníky (\term{Slidery}) 
+        pro proměnné koeficienty (například $a, b, c$) detekované v aktuálně zvolené rovnici.
+        \item \textit{Menu definičního oboru:} Obsahuje komponentu \command{DomainMenuHandler}, 
+        jež generuje krokovací tlačítka (\term{Steppery}) pro přesnou úpravu definičního oboru na osách $x$ a $z$ ($X_{min}, X_{max}, Z_{min}, Z_{max}$). 
+        K dispozici je navíc speciální nastavení \textit{Uniform} pro symetrické a rovnoměrné škálování definičního oboru do všech směrů současně.
+    \end{itemize}
+\end{itemize}
+
+Pro interakci s těmito panely se používá komponenta \product{XR Ray Interactor}, která je připojena k virtuálním reprezentacím obou ovladačů. 
+Tato komponenta vrhá do scény virtuální laserový paprsek (\term{Raycast}). 
+Jakmile paprsek protne prvek uživatelského rozhraní, aplikace zaregistruje kolizi a umožní s daným prvkem manipulovat pomocí tlačítek na ovladači. 
+Díky architektuře řízené událostmi je jakýkoliv vstup z uživatelského rozhraní (například pohyb posuvníku parametru) okamžitě zachycen, hodnoty jsou zapsány do generátoru a graf je plynule překreslen voláním metody 
+\command{RefreshGraph()}.
+
+
+\section{Fyzikální manipulace a volný pohyb}
+Aby bylo možné zkoumat topologii vygenerovaných funkcí ze všech představitelných úhlů, podporuje aplikace přímý fyzický úchop grafu a volný pohyb uživatele v prostoru. 
+Kolem každého vygenerovaného grafu je automaticky obalena komponenta \command{BoxCollider}. 
+Její střed a rozměry jsou po každé kompilaci dynamicky přepočítávány na základě aktuálních prostorových hranic (\term{bounds}) vygenerované sítě. 
+Na tento kolizní objekt je navázaná komponenta \command{XRGrabInteractable}, která tvoří přímé rozhraní mezi uživatelovou rukou a 3D sítí grafu.
+
+Logika fyzické interakce funguje na následujících principech:
+
+\begin{itemize}
+    \item \textbf{Přímý úchop (Direct Interaction):} Pokud uživatel fyzicky přiblíží svůj virtuální ovladač ke kolizní obálce grafu a stiskne úchopové tlačítko (\term{Grip Button}), objekt se stane dočasným potomkem ruky. Uživatel tak může graf zvednout ze stojanu, libovolně s ním v prostoru rotovat nebo si jej přiblížit k očím.
+    
+    \item \textbf{Úchop na dálku (Ray Interaction):} Graf není nutné zvedat pouze z bezprostřední blízkosti. Je možné jej uchopit a přesouvat i na dálku pomocí integrovaného virtuálního laserového paprsku.
+    
+    \item \textbf{Manuální změna měřítka (Scaling):} Pokud uživatel stiskne aktivační tlačítka na obou ovladačích současně, přepne se specializovaná komponenta \command{HandInteractionHandler} do režimu obouručního škálování. V tomto stavu skript kontinuálně měří měnící se euklidovskou vzdálenost mezi levým a pravým ovladačem. Pomocí přirozeného gesta roztahování rukou od sebe nebo k sobě tak uživatel může měřítko celého 3D grafu plynule zvětšovat či zmenšovat.
+    
+    \item \textbf{Zohlednění transformací a reset pozice:} Jakmile uživatel objekt pustí, interakční rámec zruší vazbu na ovladač a graf zůstane v prostoru ukotven přesně v pozici a rotaci, ve které byl zanechán. Pro případ, že by uživatel graf nechtěně odhodil nebo by objekt propadl mimo herní zónu, obsahuje třída \command{VRInputManager} metodu \command{ResetGraph()}. Ta po stisku určeného tlačítka na ovladači navrátí graf do výchozí pozice, vynuluje jeho fyzikální rychlosti (\texttt{Rigidbody}) a synchronně zresetuje matematický definiční obor i hodnoty parametrů.
+    
+    \item \textbf{Prostupné prostředí:} Uživatel není vázán pouze na statické pozorování modelu zvenčí. Kolizní systém je nastaven tak, že detekuje úchopy ovladačů, ale neklade odpor fyzickému pohybu hráče. Uživatel tak může volně procházet i skrz samotný vnitřek matematického grafu.
+\end{itemize}
+
+Díky tomu, že algoritmus bisekce přesouvá veškeré vadné vrcholy mířící do nekonečna bezpečně do lokálního počátku (\command{Vector3.zero}), 
+odpovídá velikost dynamicky upraveného kolizního tělesa \command{BoxCollider} reálné vizuální podobě grafu. Nedochází tak k matoucím a nechtěným kolizím v prázdném prostoru okolo asymptot.
+
+
+\section{Vizuální reprezentace a orientace v prostoru}
+Pro správné didaktické pochopení matematického modelu je nezbytné, aby uživatel neztratil orientaci v souřadnicovém systému ani při libovolném natočení grafu. 
+Vizuální prezentace modelu je proto podpořena následujícími prvky:
+
+\begin{itemize}
+    \item \textbf{Souřadnicové osy (KSS):} Každý vygenerovaný graf je obalen vizualizací základních prostorových os ($x, y, z$). 
+    Tyto osy (reprezentované barevnými 3D válci), včetně dynamických číselných ticků a popisků, jsou generovány statickou třídou \command{KSSGenerator} prostřednictvím metody \command{DrawKSS()}. 
+    V hierarchii scény jsou ukotveny jako přímí potomci grafu pod prázdným objektem \texttt{KSS\_Root}. 
+    K textové reprezentaci hodnot na osách je využívána vysoce ostrá a optimalizovaná komponenta \product{TextMeshPro}.
+    
+    \item \textbf{Oboustranné vykreslování:} Pro vykreslování trojúhelníkové sítě byl vytvořen vlastní grafický program (\term{shader}). 
+    Ten primárně zajišťuje oboustranné vykreslování polygonů (\term{Double-sided rendering}). 
+    Tato vlastnost je zcela nezbytná pro zachování plné viditelnosti povrchu grafu i při zkoumání a procházení modelu z jeho vnitřní nebo spodní strany.
+    
+    \item \textbf{Dithering a optimalizovaná průhlednost:} Aby okraje grafu a oříznuté asymptoty nevypadaly jako nepřirozeně useknuté stěny, využívá materiál techniku \term{ditheringu} 
+    (šumového rozptylu pixelů na základě matice). Při běžném poloprůhledném prolínání (\term{alpha blending}) dochází ve VR k vizuálnímu rozmazání, chybám v řazení průhledných ploch a ztrátě prostorových detailů. 
+    Dithering tento problém eliminuje tím, že některé pixely na okrajích (kde výška dosahuje limitu) reálně zahazuje podle vzoru, čímž udržuje stoprocentní čitelnost prostorové hloubky a správné vykreslování stínů.
+\end{itemize}
+
+
+\chapter{Výsledky a zhodnocení}
+Tato kapitola se věnuje reálnému běhu vyvinuté aplikace, hodnocení jejího výkonu a celkové analýze zvolených programátorských přístupů. 
+Hlavním kritériem úspěchu byla schopnost aplikace plynule vykreslovat a upravovat rozsáhlé matematické modely v prostředí virtuální reality.
+
+\section{Testovací prostředí a metodika}
+Pro objektivní zhodnocení výkonu probíhalo testování na hardwarové sestavě odpovídající střední třídě herních počítačů. 
+Tato konfigurace poskytuje dostatečný výkon pro plynulý běh virtuální reality a zároveň umožňuje odhalit případné úzké hrdla neoptimalizovaného kódu.
+
+Hardwarová specifikace testovací stanice:
+\begin{itemize}
+    \item \textbf{Grafická karta (GPU):} NVIDIA GeForce RTX 3060 Ti
+    \item \textbf{Procesor (CPU):} AMD Ryzen 7 5700G
+    \item \textbf{Operační paměť (RAM):} 16 GB
+\end{itemize}
+
+Zobrazení a interakce probíhaly primárně pomocí headsetu \product{Meta Quest 3}. 
+Testování zahrnovalo obě běžně dostupné metody připojení k počítači. 
+První metodou bylo přímé spojení kabelem zaručující maximální propustnost obrazu a minimální latenci. 
+Druhou metodou byl bezdrátový přenos přes lokální síť (\term{Air Link}), který uživateli poskytuje naprostou volnost pohybu za cenu mírné komprese obrazových dat.
+
+\section{Snímková frekvence a stabilita (FPS)}
+Nejdůležitějším ukazatelem použitelnosti aplikace ve virtuální realitě je stabilita snímkové frekvence. V enginu \product{Unity} bylo provedeno měření pro různé hustoty mřížky. 
+Sledovaly se dva odlišné stavy. 
+Prvním byl klidový stav, kdy uživatel graf pouze pozoruje a prochází jím. 
+Druhým stavem byla aktivní manipulace, kdy uživatel plynule táhne za posuvník parametru a aplikace musí v každém snímku generovat novou prostorovou síť.
+
+\begin{table}[htbp]
+    \centering
+    \begin{tabular}{|c|c|c|c|}
+        \hline
+        \textbf{Rozlišení sítě} & \textbf{Počet vrcholů} & \textbf{FPS v klidu} & \textbf{FPS při změnách parametrů} \\
+        \hline
+        $100 \times 100$ & 10 000 & 72 & 55 \\
+        $200 \times 200$ & 40 000 & 71 & 35 \\
+        $250 \times 250$ & 62 500 & 70 & 30 \\
+        $300 \times 300$ & 90 000 & 71 & 16 \\
+        \hline
+    \end{tabular}
+    \caption{Závislost snímkové frekvence na hustotě sítě a uživatelské interakci.}
+    \label{tab:vysledky_fps}
+\end{table}
+
+Z naměřených hodnot (viz tabulka \ref{tab:vysledky_fps}) vyplývá zásadní přínos architektury řízené událostmi. 
+V klidovém stavu naráží aplikace na hardwarový limit obnovovací frekvence samotného headsetu (72 Hz). 
+Tím se potvrzuje, že samotné vykreslení a zobrazení sítě s 90 000 vrcholy nedělá grafické kartě sebemenší problém. Výkon není limitován vykreslovacím vláknem.
+
+Při aktivní manipulaci s parametry dochází k očekávanému snížení snímkové frekvence. 
+Zde se projevuje výpočetní náročnost generování sítě na procesoru, zejména při iterování metodou bisekce. 
+Zajímavým a klíčovým zjištěním však je, že uživatelský zážitek ve virtuální realitě zůstává plynulý i při naměřených hodnotách kolem 30 FPS. 
+
+Nutno ale podotknout, že měření probíhalo přímo ve vývojovém prostředí \product{Unity Editor}, které samo o sobě spotřebovává značnou část výkonu. 
+Ve finálním přeloženém sestavení aplikace se výpočetní limity posouvají o něco výše.
+
+
+\section{Praktické ukázky vygenerovaných modelů}
+Pro ověření funkčnosti celého řešení byla aplikace testována na sadě různorodých matematických předpisů. 
+Cílem bylo potvrdit schopnost analyzátoru správně interpretovat složitý uživatelský textový řetězec a následně demonstrovat vizuální stabilitu topologicky odlišných ploch.
+
+\subsection{Spojité plochy a dynamické parametry}
+Prvním testovacím scénářem byla komplexní goniometrická funkce definovaná předpisem $f(x, y) = a \cdot \sin(b \cdot x) + c \cdot \cos(d \cdot y)$. 
+Tento předpis primárně ověřuje schopnost aplikace vykreslovat a upravovat spojité funkce. 
+
+Ve virtuální realitě vytváří tato rovnice plynulou zvlněnou plochu. 
+Vykreslování a prostorová deformace sítě je zde bezproblémové i při velmi rychlé manipulaci s posuvníky (viz obrázek \ref{fig:ukazka_vlneni}). 
+Funkce totiž na celém svém definičním oboru neobsahuje žádné body nespojitosti. 
+Procesor tak není zatěžován náročnými iteracemi vyhledávací metody bisekce.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{graf_sin_cos.png}
+    \caption{Vizualizace spojité goniometrické funkce se čtyřmi modifikovatelnými parametry ($a, b, c, d$).}
+    \label{fig:ukazka_vlneni}
+\end{figure}
+
+\subsection{Zpracování singularit a dělení nulou}
+Druhým příkladem zastupujícím extrémně problematické rovnice je lomená funkce s předpisem $f(x, y) = \frac{a \cdot x^2 \cdot b \cdot y^2}{c \cdot x^3 + d \cdot y^2}$. 
+Tento matematický model představuje zatěžkávací zkoušku pro samotný generátor geometrie.
+
+Graf v tomto případě obsahuje výškové skoky a složité singularity v místech, kde se hodnota jmenovatele blíží k nule. 
+Na výsledném vygenerovaném modelu (viz obrázek \ref{fig:ukazka_zlomek}) je jasně patrné fungování naprogramované topologické ochrany. 
+Většinu nechtěných polygonů natahujících se přes propast generátor úspěšně detekuje a ořezává pomocí algoritmu bisekce. 
+Při detailním zkoumání lze však v některých místech zpozorovat mírně zubaté okraje nebo ojedinělý polygon protínající oblast nespojitosti. 
+
+Tato chyba je primárně způsobena konečným rozlišením generované sítě a maximálním povoleným počtem iterací vyhledávacího algoritmu. 
+Pokud je skok funkce příliš strmý a reálná vzdálenost bodů napříč propastí je menší než základní krok mřížky, algoritmus nedokáže tuto hranu s absolutní přesností izolovat. 
+Snaha o úplné odstranění tohoto jevu by vyžadovala drastické zahuštění sítě nebo neúměrné navýšení počtu iterací. 
+To by následně vedlo ke kritickému propadu snímkové frekvence. 
+Z kontextu celkového tvaru plochy je nicméně pro pozorovatele naprosto zřejmé, že tyto chybné spojnice do grafu matematicky nepatří a nepůsobí tak při průzkumu natolik rušivě. 
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{graf_zlomek.png}
+    \caption{Ukázka lomené funkce.}
+    \label{fig:ukazka_zlomek}
+\end{figure}
+
+\chapter{Závěr}
+Cílem této práce bylo vyvinout aplikaci, která umožní vizualizovat a interaktivně zkoumat matematické funkce o dvou neznámých ve virtuální realitě. 
+Aplikace by měla být schopna zpracovávat širokou škálu funkcí, včetně funkcí s body nespojitosti, a zároveň poskytovat plynulý uživatelský zážitek bez ohledu na komplexitu zobrazené geometrie.
+
+\section{Shrnutí dosažených výsledků}
+Aplikace úspěšně plní všechny stanovené cíle. 
+Zcela bezproblémově zpracovává spojité funkce a s vysokou mírou spolehlivosti vizualizuje i funkce se singularitami. 
+Tyto cíle byly dosaženy pomocí následujících přístupů a optimalizací:
+
+\begin{itemize}
+    \item \textbf{Algoritmus \term{Shunting-yard} pro analýzu rovnic:} Tento algoritmus umožnil efektivní převod uživatelského textového vstupu do formy, 
+    která je snadno zpracovatelná pro vytváření abstraktního syntaktického stromu a jeho následné kompilace.
+    \item \textbf{Kompilace pro rychlé vyhodnocování:} Vytvoření syntaktického stromu a jeho kompilace do mezikódu zrychluje výpočet jednotlivých vrcholů prostorové sítě na procesoru.
+    \item \textbf{Algoritmus bisekce:} Implementace algoritmu bisekce zajišťuje detekci a ořezávání polygonů protínajících propasti, což umožňuje bezpečné zobrazování funkcí s body nespojitosti.
+    \item \textbf{Optimalizace paměti a recyklace objektů:} Minimalizace alokací a využití existujících datových struktur urychluje překreslování grafu a výrazně snižuje zátěž procesu \term{Garbage Collector}.
+    \item \textbf{Architektura řízená událostmi:} Oddělení výpočtů od renderovací smyčky zajišťuje, že procesorový čas je využíván pouze v okamžicích změny dat. 
+    Díky tomu si aplikace udržuje maximální snímkovou frekvenci v klidovém stavu.
+\end{itemize}
+
+\section{Možnosti budoucího rozšíření}
+Ačkoliv aplikace úspěšně plní svůj hlavní účel, nabízí se několik možností pro její budoucí rozšíření a optimalizaci:
+
+\begin{itemize}
+    \item \textbf{Komplexnější zpracování singularit:} Ačkoliv aplikace aktuálně dokáže detekovat a odstranit většinu chybných polygonů, v místech nejsložitějších nespojitostí se stále objevují drobné vizuální artefakty.
+    \item \textbf{Nezávislé sestavení:} V současné verzi je aplikace určena pro běh primárně přes počítač. 
+    Překlad do čistě nezávislého sestavení by naplno využil potenciál headsetů s vlastním výpočetním výkonem (jako je například \product{Meta Quest}).
+    \item \textbf{Rozhraní pro zadávání funkcí:} Místo externí úpravy textového souboru by bylo uživatelsky přívětivější implementovat virtuální klávesnici přímo do aplikace, 
+    což by umožnilo zadávat a ukládat nové rovnice bez nutnosti sundávat headset.
+\end{itemize}
+\appendix
+
+
+\chapter{Uživatelská příručka}
+Tato příloha slouží jako návod k ovládání aplikace v prostředí virtuální reality. 
+Uživatelské rozhraní je navrženo tak, aby bylo co nejvíce intuitivní. 
+Uživatel k pohybu a manipulaci s objekty využívá standardní pohybové ovladače podporované vývojovým rámcem \product{XR Interaction Toolkit}.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.7\textwidth]{ovladac.png}
+    \caption{Základní rozložení prvků a interakčních paprsků na virtuálním ovladači.}
+    \label{fig:manual_ovladac}
+\end{figure}
+
+\section{Hlavní tabule a výběr funkce}
+Po spuštění aplikace se uživatel ocitne ve virtuálním prostoru, kde na stěně se nachází hlavní interaktivní tabule. 
+Na této ploše se nachází seznam všech dostupných matematických funkcí. 
+Tyto funkce se dynamicky načítají z externího textového souboru. 
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\textwidth]{tabule.png}
+    \caption{Hlavní interaktivní tabule s nabídkou načtených matematických funkcí.}
+    \label{fig:manual_tabule}
+\end{figure}
+
+Pro výběr konkrétní rovnice slouží virtuální laserový paprsek (\term{Raycast}). 
+Tento paprsek (viz obrázek \ref{fig:manual_laser}) vychází nepřetržitě z virtuálních pohybových ovladačů. 
+Uživatel jednoduše zamíří na požadovanou rovnici a stiskne \texttt{Trigger}. 
+Okamžitě poté proběhne na pozadí výpočet a v prostoru se vygeneruje trojrozměrný model zvoleného grafu.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.6\textwidth]{laser.png}
+    \caption{Ukázka virtuálního laserového paprsku sloužícího k výběru funkce.}
+    \label{fig:manual_laser}
+\end{figure}
+
+\section{Úprava seznamu funkcí}
+Nabídka rovnic na hlavní tabuli není v aplikaci pevně zakódována. 
+Veškeré matematické předpisy se dynamicky načítají z externího textového souboru. 
+Tento přístup umožňuje uživatelům velmi snadno přidávat, upravovat nebo mazat vlastní matematické modely bez nutnosti jakkoliv zasahovat do zdrojového kódu.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.7\textwidth]{ukazka_textaku.png}
+    \caption{Ukázka struktury textového souboru s definicemi matematických funkcí.}
+    \label{fig:manual_soubor}
+\end{figure}
+
+Proces přidání nové funkce do aplikace je navržen s ohledem na maximální plynulost práce a skládá se z následujících kroků:
+
+\begin{itemize}
+    \item \textbf{Lokalizace a otevření souboru:} Uživatel vyhledá příslušný textový soubor v kořenové složce aplikace a otevře jej v libovolném textovém editoru (například v programu Poznámkový blok).
+    \item \textbf{Zápis rovnice:} Každá matematická funkce musí být zapsána výhradně na samostatném řádku. 
+    Aplikace plně podporuje standardní matematický zápis včetně závorek a běžných operací (například \command"sin", \command"cos", \command"sqrt"). 
+    Vstupní prostorové proměnné jsou striktně označovány písmeny $x$ a $y$.
+    \item \textbf{Využití vlastních parametrů:} Pokud uživatel do zápisu vloží libovolné neznámé znaky (například písmena $a, b, c$), analyzátor je při načítání automaticky rozpozná jako dynamické parametry. 
+    Pro tyto nalezené proměnné se posléze ve virtuální realitě samy vygenerují posuvníky v příručním menu.
+    \item \textbf{Uložení a automatická aktualizace:} Jakmile uživatel textový soubor uloží, aplikace tuto změnu na pozadí okamžitě detekuje. Seznam na virtuální tabuli se automaticky překreslí.
+\end{itemize}
+
+
+\section{Fyzická manipulace s modelem}
+Vygenerovaný matematický objekt představuje plně interaktivní prvek. 
+Aplikace naplno využívá fyzikální povahu virtuální reality a umožňuje s grafem prostorově manipulovat následovně:
+
+\begin{itemize}
+    \item \textbf{Přesun a rotace:} Uživatel může ke grafu přistoupit a stisknutím úchopového tlačítka (viz obrázek \ref{fig:manual_uchop}) jej vzít přímo do ruky. 
+    Graf lze posléze libovolně otáčet, naklánět a přesouvat v prostoru pro detailní prozkoumání ze všech úhlů.
+    
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=0.5\textwidth]{tlacitko_uchop.png}
+        \caption{Detail úchopového tlačítka na virtuálním ovladači.}
+        \label{fig:manual_uchop}
+    \end{figure}
+
+    \item \textbf{Změna měřítka:} Pro zkoumání asymptot nebo naopak celkového tvaru funkce je k dispozici režim obouručního škálování. Uživatel uchopí graf oběma rukama současně. 
+    Následným plynulým pohybem rukou od sebe se model zvětšuje. Pohybem rukou k sobě se model naopak zmenšuje.
+    
+    \item \textbf{Obnova pozice:} Může nastat situace, kdy uživatel nedopatřením upustí graf mimo vymezenou herní plochu, případně jej příliš zmenší. 
+    Pro tyto případy je k dispozici resetovací tlačítko (viz obrázek \ref{fig:manual_reset}), které pozici a měřítko modelu okamžitě obnoví.
+    
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=0.5\textwidth]{tlacitko_reset.png}
+        \caption{Tlačítko pro okamžitý reset pozice a měřítka grafu.}
+        \label{fig:manual_reset}
+    \end{figure}
+\end{itemize}
+
+\section{Příruční menu a dynamické úpravy}
+Pro hlubší analýzu tvaru a chování funkce má uživatel k dispozici dvě interaktivní příruční menu. 
+Toto rozhraní je ukotveno k virtuálnímu levému ovladači a vyvolává se stisknutím určitého tlačítka. Každé z těchto menu slouží k jiné úpravě grafu.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\textwidth]{menu_parametry.png}
+    \caption{Příruční menu ovladače pro změnu parametrů}
+    \label{fig:manual_param_menu}
+\end{figure}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\textwidth]{menu_def.png}
+    \caption{Příruční menu ovladače pro změnu definičního oboru.}
+    \label{fig:manual_def_menu}
+\end{figure}
+
+První menu slouží k úpravě parametrů rovnice a uživatel jej vyvolá tlačítkem ukázaným na obrázku \ref{fig:manual_btn_parametry}. 
+Nacházejí se zde dynamicky vygenerované posuvníky pro úpravu nalezených koeficientů (například parametrů $a, b, c$). 
+Uživatel je může laserovým paprskem uchopit a plynule s nimi pohybovat. Každá změna hodnoty se okamžitě projeví na grafu.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.5\textwidth]{tlacitko_parametry.png}
+    \caption{Tlačítko pro vyvolání menu s parametry funkce.}
+    \label{fig:manual_btn_parametry}
+\end{figure}
+
+Druhé menu upravuje nastavení definičního oboru a aktivuje se příslušným tlačítkem (viz obrázek \ref{fig:manual_btn_obor}). 
+Obsahuje krokovací tlačítka pro přesné určení hranic vykreslování na osách $x$ a $y$. 
+\term{Uniform} pak umožňuje měnit velikost definičního oboru symetricky do všech směrů současně.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.5\textwidth]{tlacitko_obor.png}
+    \caption{Tlačítko pro vyvolání menu s nastavením definičního oboru.}
+    \label{fig:manual_btn_obor}
+\end{figure}
+
+\section{Průzkum vnitřní topologie}
+Zásadní výhodou virtuální reality je volnost pohybu. 
+Uživatel není vázán pouze na statický pohled zvenčí. 
+Díky implementaci oboustranného grafického materiálu může do vygenerovaného modelu fyzicky vstoupit. 
+Získá tak zcela unikátní perspektivu pro pochopení složitých prostorových útvarů a vnitřních struktur zkoumaných matematických funkcí.
+
+
+
+
+
+\backmatter
+\printbibliography
+\backpage
+\end{document}
