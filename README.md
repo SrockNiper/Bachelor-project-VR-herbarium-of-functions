@@ -8,11 +8,11 @@
 
 Bakalářská práce vypracovaná na **Západočeské univerzitě v Plzni (FAV, KIV)** pod vedením **Ing. Petra Vaněčka, Ph.D.**
 
-Cílem projektu je přenést koncept *Herbáře funkcí* (původně knižní publikace Katedry matematiky FAV KMA) do interaktivního 3D prostoru virtuální reality. Aplikace slouží jako moderní výuková pomůcka, která studentům umožňuje v reálném čase zkoumat, manipulovat a vizuálně chápat chování prostorových matematických funkcí dvou nezávislých proměnných $z = f(x, y)$.
+Cílem projektu je přenést koncept *Herbáře funkcí* (původně knižní publikace Katedry matematiky FAV KMA) do interaktivního 3D prostoru virtuální reality. Aplikace slouží jako moderní výuková pomůcka, která studentům umožňuje v reálném čase zkoumat, manipulovat a vizuálně chápat chování prostorových matematických funkcí $z = f(x, y)$.
 
 ---
 
-## 🌟 Klíčové vlastnosti (Key Features)
+## Klíčové vlastnosti (Key Features)
 
 - **Real-time generování 3D sítě (Mesh Generation):**
   - Dynamický výpočet vrcholů, trojúhelníků, normál a UV map přímo v reálném čase při změně předpisu či parametrů.
@@ -28,7 +28,7 @@ Cílem projektu je přenést koncept *Herbáře funkcí* (původně knižní pub
 
 ---
 
-## 🛠️ Architektura a struktura projektu
+## Architektura a struktura projektu
 
 ```text
 Assets/Scripts/
@@ -55,7 +55,7 @@ Assets/Scripts/
 
 ---
 
-## 🚀 Požadavky a spuštění
+## Požadavky a spuštění
 
 ### Požadavky:
 - **Unity:** Doporučeno Unity 6 (6000.x) s podporou **Universal Render Pipeline (URP)**.
@@ -73,7 +73,7 @@ Assets/Scripts/
 
 ---
 
-## 🎓 O autorovi a práci
+## 🎓 O práci
 
 - **Autor:** Marek Jirušek
 - **Vedoucí práce:** Ing. Petr Vaněček, Ph.D.
